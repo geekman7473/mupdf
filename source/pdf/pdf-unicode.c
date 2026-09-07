@@ -45,12 +45,39 @@ pdf_remap_cmap_range(fz_context *ctx, pdf_cmap *ucs_from_gid,
 	}
 }
 
+static int
+pdf_cmap_is_identity(pdf_cmap *cmap)
+{
+	int i;
+	int has_ranges = 0;
+
+	for (; cmap; cmap = cmap->usecmap)
+	{
+		if (cmap->xlen != 0 || cmap->mlen != 0)
+			return 0;
+
+		for (i = 0; i < cmap->rlen; ++i)
+		{
+			if (cmap->ranges[i].out != cmap->ranges[i].low)
+				return 0;
+
+			has_ranges = 1;
+		}
+	}
+
+	return has_ranges;
+}
+
 static pdf_cmap *
 pdf_remap_cmap(fz_context *ctx, pdf_cmap *gid_from_cpt, pdf_cmap *ucs_from_cpt)
 {
 	pdf_cmap *ucs_from_gid;
 	unsigned int a, b, x;
 	int i;
+
+	// Fast path for identity mappings.
+	if (pdf_cmap_is_identity(gid_from_cpt))
+		return pdf_keep_cmap(ctx, ucs_from_cpt);
 
 	ucs_from_gid = pdf_new_cmap(ctx);
 
