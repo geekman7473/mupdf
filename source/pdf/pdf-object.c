@@ -1989,8 +1989,8 @@ pdf_array_put_drop(fz_context *ctx, pdf_obj *obj, int i, pdf_obj *item)
 		fz_rethrow(ctx);
 }
 
-void
-pdf_array_push(fz_context *ctx, pdf_obj *obj, pdf_obj *item)
+static pdf_obj_array *
+pdf_array_prepare_push(fz_context *ctx, pdf_obj *obj, pdf_obj *item)
 {
 	RESOLVE(obj);
 	if (!OBJ_IS_ARRAY(obj))
@@ -1998,8 +1998,15 @@ pdf_array_push(fz_context *ctx, pdf_obj *obj, pdf_obj *item)
 	prepare_object_for_alteration(ctx, obj, item);
 	if (ARRAY(obj)->len + 1 > ARRAY(obj)->cap)
 		pdf_array_grow(ctx, ARRAY(obj));
-	ARRAY(obj)->items[ARRAY(obj)->len] = pdf_keep_obj(ctx, item);
-	ARRAY(obj)->len++;
+	return ARRAY(obj);
+}
+
+void
+pdf_array_push(fz_context *ctx, pdf_obj *obj, pdf_obj *item)
+{
+	pdf_obj_array *arr = pdf_array_prepare_push(ctx, obj, item);
+	arr->items[arr->len] = pdf_keep_obj(ctx, item);
+	arr->len++;
 }
 
 void
@@ -3900,29 +3907,42 @@ void pdf_array_push_bool(fz_context *ctx, pdf_obj *array, int x)
 	pdf_array_push(ctx, array, x ? PDF_TRUE : PDF_FALSE);
 }
 
+/* Prepare the array before creating the scalar, so no object is ever owned
+ * across a call that can throw: no fz_try and no keep/drop pair needed.
+ * (NULL item is fine: prepare_object_for_alteration ignores scalars.) */
 void pdf_array_push_int(fz_context *ctx, pdf_obj *array, int64_t x)
 {
-	pdf_array_push_drop(ctx, array, pdf_new_int(ctx, x));
+	pdf_obj_array *arr = pdf_array_prepare_push(ctx, array, NULL);
+	pdf_obj *item = pdf_new_int(ctx, x);
+	arr->items[arr->len++] = item;
 }
 
 void pdf_array_push_real(fz_context *ctx, pdf_obj *array, double x)
 {
-	pdf_array_push_drop(ctx, array, pdf_new_real(ctx, x));
+	pdf_obj_array *arr = pdf_array_prepare_push(ctx, array, NULL);
+	pdf_obj *item = pdf_new_real(ctx, x);
+	arr->items[arr->len++] = item;
 }
 
 void pdf_array_push_name(fz_context *ctx, pdf_obj *array, const char *x)
 {
-	pdf_array_push_drop(ctx, array, pdf_new_name(ctx, x));
+	pdf_obj_array *arr = pdf_array_prepare_push(ctx, array, NULL);
+	pdf_obj *item = pdf_new_name(ctx, x);
+	arr->items[arr->len++] = item;
 }
 
 void pdf_array_push_string(fz_context *ctx, pdf_obj *array, const char *x, size_t n)
 {
-	pdf_array_push_drop(ctx, array, pdf_new_string(ctx, x, n));
+	pdf_obj_array *arr = pdf_array_prepare_push(ctx, array, NULL);
+	pdf_obj *item = pdf_new_string(ctx, x, n);
+	arr->items[arr->len++] = item;
 }
 
 void pdf_array_push_text_string(fz_context *ctx, pdf_obj *array, const char *x)
 {
-	pdf_array_push_drop(ctx, array, pdf_new_text_string(ctx, x));
+	pdf_obj_array *arr = pdf_array_prepare_push(ctx, array, NULL);
+	pdf_obj *item = pdf_new_text_string(ctx, x);
+	arr->items[arr->len++] = item;
 }
 
 pdf_obj *pdf_array_push_array(fz_context *ctx, pdf_obj *array, int initial)
